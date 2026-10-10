@@ -387,62 +387,15 @@ export function useWatchParty(options: UseWatchPartyOptions = {}) {
           handleIncomingMessage(data);
           getWebSocket().catch(() => {});
           return;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          setError(errData.error || `Room "${code}" not found. Please verify the code.`);
+          return;
         }
       } catch (netErr) {
-        console.warn('HTTP join room failed, falling back to local join:', netErr);
+        console.warn('HTTP join room network error:', netErr);
+        setError(`Failed to connect to server to join room "${code}". Check your connection.`);
       }
-
-      // Fallback join if server API fails or room not found on server
-      const memberId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      const memberName = (userName || 'Guest').trim().substring(0, 24);
-      const color = '#10b981';
-
-      const localRoom: WatchPartyState = {
-        code,
-        hostId: 'host-remote',
-        hostOnlyControl: false,
-        mediaInfo: mediaInfo || null,
-        playback: {
-          isPlaying: false,
-          currentTime: 0,
-          updatedAt: Date.now(),
-          playbackRate: 1,
-        },
-        members: [
-          {
-            id: 'host-remote',
-            name: 'Room Host',
-            color: '#38bdf8',
-            isHost: true,
-            currentTime: 0,
-            isPlaying: false,
-          },
-          {
-            id: memberId,
-            name: memberName,
-            color,
-            isHost: false,
-            currentTime: 0,
-            isPlaying: false,
-          },
-        ],
-        messages: [
-          {
-            id: `sys-${Date.now()}`,
-            senderId: 'system',
-            senderName: 'System',
-            senderColor: color,
-            text: `${memberName} joined the party!`,
-            timestamp: Date.now(),
-            isSystem: true,
-          },
-        ],
-      };
-
-      setCurrentMemberId(memberId);
-      setRoomState(localRoom);
-      setError(null);
-      getWebSocket().catch(() => {});
     },
     [handleIncomingMessage, getWebSocket]
   );

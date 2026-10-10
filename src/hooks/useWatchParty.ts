@@ -88,9 +88,8 @@ export function useWatchParty(options: UseWatchPartyOptions = {}) {
       };
 
       ws.onerror = (e) => {
-        console.error('WatchParty WebSocket error:', e);
+        console.warn('WatchParty WebSocket error (falling back to HTTP/polling):', e);
         setIsConnecting(false);
-        setError('Failed to connect to party server. Check your connection.');
         reject(e);
       };
 

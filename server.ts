@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
@@ -57,6 +58,60 @@ interface Room {
 }
 
 const rooms = new Map<string, Room>();
+const ROOMS_FILE = path.join(__dirname, 'rooms.json');
+
+function loadPersistentRooms() {
+  try {
+    if (fs.existsSync(ROOMS_FILE)) {
+      const data = fs.readFileSync(ROOMS_FILE, 'utf8');
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((r: any) => {
+          const membersMap = new Map<string, Member>();
+          if (Array.isArray(r.members)) {
+            r.members.forEach((m: any) => {
+              membersMap.set(m.id, {
+                ...m,
+                ws: { send: () => {} } as unknown as WebSocket,
+              });
+            });
+          }
+          rooms.set(r.code, {
+            ...r,
+            members: membersMap,
+          });
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load persistent rooms:', err);
+  }
+}
+
+function savePersistentRooms() {
+  try {
+    const serializableRooms = Array.from(rooms.entries()).map(([code, room]) => ({
+      code: room.code,
+      hostId: room.hostId,
+      hostOnlyControl: room.hostOnlyControl,
+      createdAt: room.createdAt,
+      mediaInfo: room.mediaInfo,
+      playback: room.playback,
+      messages: room.messages,
+      members: Array.from(room.members.values()).map((m) => ({
+        id: m.id,
+        name: m.name,
+        color: m.color,
+        isHost: m.isHost,
+        currentTime: m.currentTime,
+        isPlaying: m.isPlaying,
+      })),
+    }));
+    fs.writeFileSync(ROOMS_FILE, JSON.stringify(serializableRooms, null, 2));
+  } catch (err) {
+    console.warn('Failed to save persistent rooms:', err);
+  }
+}
 
 const USER_COLORS = [
   '#38bdf8', // sky
@@ -169,6 +224,7 @@ function createNewRoom(
   };
 
   rooms.set(code, room);
+  savePersistentRooms();
   return { code, memberId, memberName, color, room };
 }
 
@@ -220,10 +276,12 @@ function createRoomWithCode(
   };
 
   rooms.set(code, room);
+  savePersistentRooms();
   return { code, memberId, memberName, color, room };
 }
 
 async function startServer() {
+  loadPersistentRooms();
   const app = express();
   app.use(express.json());
 
@@ -339,6 +397,7 @@ async function startServer() {
       };
 
       room.members.set(memberId, newMember);
+      savePersistentRooms();
 
       const joinMsg: RoomMessage = {
         id: `sys-${Date.now()}`,
@@ -567,16 +626,11 @@ async function startServer() {
 
           case 'join': {
             const code = (data.roomCode || '').toUpperCase().trim();
-            const room = rooms.get(code);
+            let room = rooms.get(code);
 
             if (!room) {
-              ws.send(
-                JSON.stringify({
-                  type: 'error',
-                  message: `Room "${code}" not found. Please verify the room code.`,
-                })
-              );
-              return;
+              const created = createRoomWithCode(code, data.userName || 'Host', false, data.mediaInfo, ws);
+              room = created.room;
             }
 
             const memberId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -594,6 +648,7 @@ async function startServer() {
             };
 
             room.members.set(memberId, newMember);
+            savePersistentRooms();
             currentRoomCode = code;
             currentMemberId = memberId;
 

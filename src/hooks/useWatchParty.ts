@@ -44,6 +44,33 @@ export function useWatchParty(options: UseWatchPartyOptions = {}) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
+  const roomStateRef = useRef(roomState);
+  roomStateRef.current = roomState;
+  const currentMemberIdRef = useRef(currentMemberId);
+  currentMemberIdRef.current = currentMemberId;
+
+  // Send identify when roomState or currentMemberId changes and WS is open
+  useEffect(() => {
+    if (
+      roomState?.code &&
+      currentMemberId &&
+      wsRef.current &&
+      wsRef.current.readyState === WebSocket.OPEN
+    ) {
+      try {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'identify',
+            roomCode: roomState.code,
+            memberId: currentMemberId,
+          })
+        );
+      } catch {
+        // ignore
+      }
+    }
+  }, [roomState?.code, currentMemberId]);
+
   const currentMember = roomState?.members.find((m) => m.id === currentMemberId);
   const isHost = Boolean(currentMember?.isHost || (roomState && roomState.hostId === currentMemberId));
 
@@ -84,6 +111,19 @@ export function useWatchParty(options: UseWatchPartyOptions = {}) {
       ws.onopen = () => {
         setIsConnected(true);
         setIsConnecting(false);
+        if (roomStateRef.current?.code && currentMemberIdRef.current) {
+          try {
+            ws.send(
+              JSON.stringify({
+                type: 'identify',
+                roomCode: roomStateRef.current.code,
+                memberId: currentMemberIdRef.current,
+              })
+            );
+          } catch {
+            // ignore
+          }
+        }
         resolve(ws);
       };
 

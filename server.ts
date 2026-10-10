@@ -172,6 +172,57 @@ function createNewRoom(
   return { code, memberId, memberName, color, room };
 }
 
+function createRoomWithCode(
+  code: string,
+  userName: string,
+  hostOnlyControl: boolean = false,
+  mediaInfo: any = null,
+  ws?: WebSocket
+) {
+  const memberId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const memberName = (userName || 'Host').trim().substring(0, 24);
+  const color = getRandomColor();
+
+  const newMember: Member = {
+    id: memberId,
+    name: memberName,
+    color,
+    isHost: true,
+    currentTime: 0,
+    isPlaying: false,
+    ws: ws || ({ send: () => {} } as unknown as WebSocket),
+  };
+
+  const room: Room = {
+    code,
+    hostId: memberId,
+    hostOnlyControl: Boolean(hostOnlyControl),
+    createdAt: Date.now(),
+    mediaInfo: mediaInfo || null,
+    playback: {
+      isPlaying: false,
+      currentTime: 0,
+      updatedAt: Date.now(),
+      playbackRate: 1,
+    },
+    messages: [
+      {
+        id: `sys-${Date.now()}`,
+        senderId: 'system',
+        senderName: 'System',
+        senderColor: '#38bdf8',
+        text: `Room ${code} created.`,
+        timestamp: Date.now(),
+        isSystem: true,
+      },
+    ],
+    members: new Map([[memberId, newMember]]),
+  };
+
+  rooms.set(code, room);
+  return { code, memberId, memberName, color, room };
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json());
@@ -183,9 +234,10 @@ async function startServer() {
 
   app.get('/api/rooms/:code', (req, res) => {
     const code = req.params.code.toUpperCase();
-    const room = rooms.get(code);
+    let room = rooms.get(code);
     if (!room) {
-      return res.status(404).json({ error: 'Room not found' });
+      const created = createRoomWithCode(code, 'Host');
+      room = created.room;
     }
     return res.json({
       code: room.code,
@@ -197,9 +249,10 @@ async function startServer() {
 
   app.get('/api/rooms/:code/state', (req, res) => {
     const code = req.params.code.toUpperCase();
-    const room = rooms.get(code);
+    let room = rooms.get(code);
     if (!room) {
-      return res.status(404).json({ error: 'Room not found' });
+      const created = createRoomWithCode(code, 'Host');
+      room = created.room;
     }
     const estTime = computeEstimatedTime(room);
     return res.json({
@@ -251,9 +304,24 @@ async function startServer() {
     try {
       const { roomCode, userName, mediaInfo } = req.body;
       const code = (roomCode || '').toUpperCase().trim();
-      const room = rooms.get(code);
+      let room = rooms.get(code);
       if (!room) {
-        return res.status(404).json({ error: `Room "${code}" not found. Please verify the room code.` });
+        const created = createRoomWithCode(code, userName || 'Host', false, mediaInfo);
+        return res.json({
+          type: 'created',
+          roomCode: code,
+          memberId: created.memberId,
+          member: { id: created.memberId, name: created.memberName, color: created.color, isHost: true },
+          room: {
+            code,
+            hostId: created.memberId,
+            hostOnlyControl: created.room.hostOnlyControl,
+            mediaInfo: created.room.mediaInfo,
+            playback: created.room.playback,
+            members: getSanitizedMembers(created.room),
+            messages: created.room.messages,
+          },
+        });
       }
 
       const memberId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -586,6 +654,20 @@ async function startServer() {
               },
               ws
             );
+            break;
+          }
+
+          case 'identify': {
+            const code = (data.roomCode || '').toUpperCase().trim();
+            const room = rooms.get(code);
+            if (room && data.memberId) {
+              const member = room.members.get(data.memberId);
+              if (member) {
+                member.ws = ws;
+                currentRoomCode = code;
+                currentMemberId = data.memberId;
+              }
+            }
             break;
           }
 

@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@keyframes reactionFloat {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-40px) scale(1.15);
+  }
+  80% {
+    opacity: 0.95;
+    transform: translateY(-260px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-360px) scale(0.8);
+  }
+}
+
+.animate-reaction-float {
+  animation: reactionFloat 3.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}

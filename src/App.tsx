@@ -14,6 +14,9 @@ import {
   ShieldCheck,
   Maximize,
   Users,
+  Home,
+  ArrowLeft,
+  Play,
 } from 'lucide-react';
 import {
   MediaItem,
@@ -40,6 +43,7 @@ import { createMediaItemFromSample, SampleMovie } from './utils/sampleMovies';
 export default function App() {
   const [playlist, setPlaylist] = useState<MediaItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [currentView, setCurrentView] = useState<'home' | 'player'>('home');
 
   // Settings & state
   const [aspectRatio, setAspectRatio] = useState<AspectRatioMode>('original');
@@ -156,6 +160,7 @@ export default function App() {
         }
         return nextList;
       });
+      setCurrentView('player');
     }
   };
 
@@ -166,12 +171,14 @@ export default function App() {
       setCurrentIndex(0);
       return nextList;
     });
+    setCurrentView('player');
   };
 
   // Switch Track
   const handleSelectTrack = (index: number) => {
     if (index >= 0 && index < playlist.length) {
       setCurrentIndex(index);
+      setCurrentView('player');
     }
   };
 
@@ -377,17 +384,66 @@ export default function App() {
     <div className="flex flex-col h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans">
       {/* Top Application Header */}
       <header className="h-14 border-b border-zinc-800/80 bg-zinc-900/95 px-4 flex items-center justify-between z-30 shrink-0 backdrop-blur-md">
-        {/* Brand & Status */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+        {/* Brand & Navigation */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => setCurrentView('home')}
+            className="flex items-center gap-2 group text-left cursor-pointer hover:opacity-90 transition-opacity"
+            title="Go to Home Screen"
+          >
+            <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 group-hover:scale-105 transition-transform">
               <Film className="w-4 h-4" />
             </div>
-            <span className="font-bold text-sm tracking-wide text-white">OmniPlay</span>
-          </div>
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-zinc-800/80 border border-zinc-700/50 text-[11px] text-zinc-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span>Direct Local Playback</span>
+            <span className="font-bold text-sm tracking-wide text-white group-hover:text-sky-300 transition-colors hidden sm:inline">
+              OmniPlay
+            </span>
+          </button>
+
+          {/* Dedicated Back to Home Button when viewing player */}
+          {currentView === 'player' && (
+            <button
+              onClick={() => setCurrentView('home')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 hover:text-white border border-sky-500/40 text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
+              title="Return to Home Screen & Library"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+              <Home className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Back to Home</span>
+            </button>
+          )}
+
+          {/* Navigation Controls: Home vs Now Playing */}
+          <div className="flex items-center gap-1 bg-zinc-950/70 p-1 rounded-xl border border-zinc-800/80">
+            <button
+              onClick={() => setCurrentView('home')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                currentView === 'home'
+                  ? 'bg-sky-500 text-zinc-950 shadow-xs'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-800/70'
+              }`}
+              title="Return to Home Screen"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>Home</span>
+            </button>
+
+            {playlist.length > 0 && currentMedia && (
+              <button
+                onClick={() => setCurrentView('player')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  currentView === 'player'
+                    ? 'bg-sky-500 text-zinc-950 shadow-xs'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/70'
+                }`}
+                title="Return to Video Player"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Now Playing</span>
+                <span className="text-[10px] opacity-75 font-mono max-w-[110px] truncate hidden lg:inline">
+                  ({currentMedia.name})
+                </span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -506,11 +562,20 @@ export default function App() {
 
       {/* Main Player Display Area */}
       <main className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
-        {playlist.length === 0 || !currentMedia ? (
+        {currentView === 'home' || playlist.length === 0 || !currentMedia ? (
           <EmptyState
-            onAddFiles={handleAddFiles}
-            onLoadMediaItem={handleLoadMediaItem}
+            onAddFiles={(files) => {
+              handleAddFiles(files);
+              setCurrentView('player');
+            }}
+            onLoadMediaItem={(item) => {
+              handleLoadMediaItem(item);
+              setCurrentView('player');
+            }}
             onOpenWatchParty={() => setIsWatchPartyOpen(true)}
+            hasLoadedMedia={Boolean(currentMedia)}
+            onReturnToPlayer={() => setCurrentView('player')}
+            currentMediaName={currentMedia?.name}
           />
         ) : (
           <VideoPlayer
@@ -544,6 +609,7 @@ export default function App() {
             onSendReaction={watchParty.sendReaction}
             onOpenWatchParty={() => setIsWatchPartyOpen(true)}
             onOpenPartyDrawer={() => setIsChatDrawerOpen(true)}
+            onBackToHome={() => setCurrentView('home')}
           />
         )}
       </main>
@@ -552,6 +618,10 @@ export default function App() {
       <PlaylistDrawer
         isOpen={isPlaylistOpen}
         onClose={() => setIsPlaylistOpen(false)}
+        onBackToHome={() => {
+          setIsPlaylistOpen(false);
+          setCurrentView('home');
+        }}
         playlist={playlist}
         currentIndex={currentIndex}
         onSelectTrack={handleSelectTrack}
@@ -567,6 +637,10 @@ export default function App() {
       <BookmarksDrawer
         isOpen={isBookmarksOpen}
         onClose={() => setIsBookmarksOpen(false)}
+        onBackToHome={() => {
+          setIsBookmarksOpen(false);
+          setCurrentView('home');
+        }}
         bookmarks={currentMedia?.bookmarks || []}
         currentTime={
           (document.querySelector('video, audio') as HTMLMediaElement | null)?.currentTime || 0
@@ -579,6 +653,10 @@ export default function App() {
       <EffectsModal
         isOpen={isEffectsOpen}
         onClose={() => setIsEffectsOpen(false)}
+        onBackToHome={() => {
+          setIsEffectsOpen(false);
+          setCurrentView('home');
+        }}
         filters={videoFilters}
         onFiltersChange={setVideoFilters}
         bands={eqBands}
@@ -592,17 +670,29 @@ export default function App() {
       <ShortcutsModal
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
+        onBackToHome={() => {
+          setIsShortcutsOpen(false);
+          setCurrentView('home');
+        }}
       />
 
       <MediaInfoModal
         isOpen={isInfoOpen}
         onClose={() => setIsInfoOpen(false)}
+        onBackToHome={() => {
+          setIsInfoOpen(false);
+          setCurrentView('home');
+        }}
         item={currentMedia}
       />
 
       <ScreenshotModal
         isOpen={screenshotData.isOpen}
         onClose={() => setScreenshotData({ isOpen: false, imageUrl: null, time: 0 })}
+        onBackToHome={() => {
+          setScreenshotData({ isOpen: false, imageUrl: null, time: 0 });
+          setCurrentView('home');
+        }}
         imageUrl={screenshotData.imageUrl}
         videoTitle={currentMedia?.name || 'Video'}
         timestamp={screenshotData.time}
@@ -612,6 +702,10 @@ export default function App() {
       <WatchPartyModal
         isOpen={isWatchPartyOpen}
         onClose={() => setIsWatchPartyOpen(false)}
+        onBackToHome={() => {
+          setIsWatchPartyOpen(false);
+          setCurrentView('home');
+        }}
         roomState={watchParty.roomState}
         currentMemberId={watchParty.currentMemberId}
         isHost={watchParty.isHost}
@@ -631,6 +725,10 @@ export default function App() {
       <WatchPartyDrawer
         isOpen={isChatDrawerOpen}
         onClose={() => setIsChatDrawerOpen(false)}
+        onBackToHome={() => {
+          setIsChatDrawerOpen(false);
+          setCurrentView('home');
+        }}
         roomState={watchParty.roomState}
         currentMemberId={watchParty.currentMemberId}
         isHost={watchParty.isHost}

@@ -286,23 +286,30 @@ export function useWatchParty(options: UseWatchPartyOptions = {}) {
       playbackRate: number = 1
     ) => {
       try {
-        const ws = await getWebSocket();
-        ws.send(
-          JSON.stringify({
-            type: 'create',
+        const res = await fetch('/api/rooms/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             userName,
             hostOnlyControl,
             mediaInfo: mediaInfo || null,
             currentTime,
             isPlaying,
             playbackRate,
-          })
-        );
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to create room');
+        }
+        const data = await res.json();
+        handleIncomingMessage(data);
+        getWebSocket().catch(() => {});
       } catch (err: any) {
-        setError('Failed to create room. Please try again.');
+        setError(err.message || 'Failed to create room. Please try again.');
       }
     },
-    [getWebSocket]
+    [handleIncomingMessage, getWebSocket]
   );
 
   const joinRoom = useCallback(
@@ -312,23 +319,37 @@ export function useWatchParty(options: UseWatchPartyOptions = {}) {
       mediaInfo?: WatchPartyMediaInfo | null
     ) => {
       try {
-        const ws = await getWebSocket();
-        ws.send(
-          JSON.stringify({
-            type: 'join',
+        const res = await fetch('/api/rooms/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             roomCode: roomCode.trim().toUpperCase(),
             userName,
             mediaInfo: mediaInfo || null,
-          })
-        );
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to join room');
+        }
+        const data = await res.json();
+        handleIncomingMessage(data);
+        getWebSocket().catch(() => {});
       } catch (err: any) {
-        setError('Failed to join room. Please check room code.');
+        setError(err.message || 'Failed to join room. Please check room code.');
       }
     },
-    [getWebSocket]
+    [handleIncomingMessage, getWebSocket]
   );
 
   const leaveRoom = useCallback(() => {
+    if (roomState?.code && currentMemberId) {
+      fetch(`/api/rooms/${roomState.code}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'leave', memberId: currentMemberId }),
+      }).catch(() => {});
+    }
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
         wsRef.current.send(JSON.stringify({ type: 'leave' }));
@@ -339,7 +360,51 @@ export function useWatchParty(options: UseWatchPartyOptions = {}) {
     setRoomState(null);
     setCurrentMemberId(null);
     setReactions([]);
-  }, []);
+  }, [roomState?.code, currentMemberId]);
+
+  const sendAction = useCallback(
+    async (actionType: string, payload: any) => {
+      if (!roomState?.code || !currentMemberId) return;
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        if (actionType === 'playback_sync') {
+          wsRef.current.send(JSON.stringify({ type: 'playback_sync', ...payload }));
+          return;
+        }
+        if (actionType === 'media_announce') {
+          wsRef.current.send(JSON.stringify({ type: 'media_announce', ...payload }));
+          return;
+        }
+        if (actionType === 'chat_message') {
+          wsRef.current.send(JSON.stringify({ type: 'chat_message', ...payload }));
+          return;
+        }
+        if (actionType === 'reaction') {
+          wsRef.current.send(JSON.stringify({ type: 'reaction', ...payload }));
+          return;
+        }
+        if (actionType === 'update_settings') {
+          wsRef.current.send(JSON.stringify({ type: 'update_settings', ...payload }));
+          return;
+        }
+        if (actionType === 'sync_request') {
+          wsRef.current.send(JSON.stringify({ type: 'sync_request' }));
+          return;
+        }
+      }
+
+      // Fallback to REST
+      try {
+        await fetch(`/api/rooms/${roomState.code}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: actionType, memberId: currentMemberId, ...payload }),
+        });
+      } catch (err) {
+        console.error('Action error:', err);
+      }
+    },
+    [roomState?.code, currentMemberId]
+  );
 
   const sendPlaybackSync = useCallback(
     (
@@ -347,85 +412,63 @@ export function useWatchParty(options: UseWatchPartyOptions = {}) {
       currentTime: number,
       playbackRate: number = 1
     ) => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(
-          JSON.stringify({
-            type: 'playback_sync',
-            action,
-            currentTime,
-            playbackRate,
-          })
-        );
-      }
+      sendAction('playback_sync', { action, currentTime, playbackRate });
     },
-    []
+    [sendAction]
   );
 
-  const sendHeartbeat = useCallback((currentTime: number, isPlaying: boolean) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'heartbeat',
-          currentTime,
-          isPlaying,
-        })
-      );
-    }
+  const sendHeartbeat = useCallback((_currentTime: number, _isPlaying: boolean) => {
+    // optional
   }, []);
 
   const sendMediaAnnounce = useCallback((mediaInfo: WatchPartyMediaInfo) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'media_announce',
-          mediaInfo,
-        })
-      );
-    }
-  }, []);
+    sendAction('media_announce', { mediaInfo });
+  }, [sendAction]);
 
   const sendChatMessage = useCallback((text: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'chat_message',
-          text,
-        })
-      );
-    }
-  }, []);
+    sendAction('chat_message', { text });
+  }, [sendAction]);
 
   const sendReaction = useCallback((emoji: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'reaction',
-          emoji,
-        })
-      );
-    }
-  }, []);
+    sendAction('reaction', { emoji });
+  }, [sendAction]);
 
   const setHostOnlyControl = useCallback((enabled: boolean) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'update_settings',
-          hostOnlyControl: enabled,
-        })
-      );
-    }
-  }, []);
+    sendAction('update_settings', { hostOnlyControl: enabled });
+  }, [sendAction]);
 
   const requestResync = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'sync_request',
-        })
-      );
-    }
-  }, []);
+    sendAction('sync_request', {});
+  }, [sendAction]);
+
+  // Polling state when in room
+  useEffect(() => {
+    if (!roomState?.code || !currentMemberId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/rooms/${roomState.code}/state`);
+        if (res.ok) {
+          const data = await res.json();
+          setRoomState((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              hostId: data.hostId,
+              hostOnlyControl: data.hostOnlyControl,
+              mediaInfo: data.mediaInfo,
+              members: data.members,
+              messages: data.messages,
+            };
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [roomState?.code, currentMemberId]);
 
   // Cleanup on unmount
   useEffect(() => {

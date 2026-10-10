@@ -114,6 +114,64 @@ function broadcastToRoom(room: Room, message: unknown, excludeWs?: WebSocket) {
   });
 }
 
+function createNewRoom(
+  userName: string,
+  hostOnlyControl: boolean,
+  mediaInfo: any,
+  currentTime: number,
+  isPlaying: boolean,
+  playbackRate: number,
+  ws?: WebSocket
+) {
+  let code = generateRoomCode();
+  while (rooms.has(code)) {
+    code = generateRoomCode();
+  }
+
+  const memberId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const memberName = (userName || 'Host').trim().substring(0, 24);
+  const color = getRandomColor();
+
+  const newMember: Member = {
+    id: memberId,
+    name: memberName,
+    color,
+    isHost: true,
+    currentTime: Number(currentTime) || 0,
+    isPlaying: Boolean(isPlaying),
+    ws: ws || ({ send: () => {} } as unknown as WebSocket),
+  };
+
+  const room: Room = {
+    code,
+    hostId: memberId,
+    hostOnlyControl: Boolean(hostOnlyControl),
+    createdAt: Date.now(),
+    mediaInfo: mediaInfo || null,
+    playback: {
+      isPlaying: Boolean(isPlaying),
+      currentTime: Number(currentTime) || 0,
+      updatedAt: Date.now(),
+      playbackRate: Number(playbackRate) || 1,
+    },
+    messages: [
+      {
+        id: `sys-${Date.now()}`,
+        senderId: 'system',
+        senderName: 'System',
+        senderColor: '#38bdf8',
+        text: `Room ${code} created. Share the code with a friend to watch together!`,
+        timestamp: Date.now(),
+        isSystem: true,
+      },
+    ],
+    members: new Map([[memberId, newMember]]),
+  };
+
+  rooms.set(code, room);
+  return { code, memberId, memberName, color, room };
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json());
@@ -137,6 +195,258 @@ async function startServer() {
     });
   });
 
+  app.get('/api/rooms/:code/state', (req, res) => {
+    const code = req.params.code.toUpperCase();
+    const room = rooms.get(code);
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    const estTime = computeEstimatedTime(room);
+    return res.json({
+      code: room.code,
+      hostId: room.hostId,
+      hostOnlyControl: room.hostOnlyControl,
+      mediaInfo: room.mediaInfo,
+      playback: {
+        ...room.playback,
+        currentTime: estTime,
+      },
+      members: getSanitizedMembers(room),
+      messages: room.messages,
+    });
+  });
+
+  app.post('/api/rooms/create', (req, res) => {
+    try {
+      const { userName, hostOnlyControl, mediaInfo, currentTime, isPlaying, playbackRate } = req.body;
+      const { code, memberId, memberName, color, room } = createNewRoom(
+        userName,
+        hostOnlyControl,
+        mediaInfo,
+        currentTime,
+        isPlaying,
+        playbackRate
+      );
+      return res.json({
+        type: 'created',
+        roomCode: code,
+        memberId,
+        member: { id: memberId, name: memberName, color, isHost: true },
+        room: {
+          code,
+          hostId: memberId,
+          hostOnlyControl: room.hostOnlyControl,
+          mediaInfo: room.mediaInfo,
+          playback: room.playback,
+          members: getSanitizedMembers(room),
+          messages: room.messages,
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'Failed to create room' });
+    }
+  });
+
+  app.post('/api/rooms/join', (req, res) => {
+    try {
+      const { roomCode, userName, mediaInfo } = req.body;
+      const code = (roomCode || '').toUpperCase().trim();
+      const room = rooms.get(code);
+      if (!room) {
+        return res.status(404).json({ error: `Room "${code}" not found. Please verify the room code.` });
+      }
+
+      const memberId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const memberName = (userName || `Guest ${room.members.size + 1}`).trim().substring(0, 24);
+      const color = getRandomColor();
+
+      const newMember: Member = {
+        id: memberId,
+        name: memberName,
+        color,
+        isHost: false,
+        currentTime: room.playback.currentTime,
+        isPlaying: room.playback.isPlaying,
+        ws: { send: () => {} } as unknown as WebSocket,
+      };
+
+      room.members.set(memberId, newMember);
+
+      const joinMsg: RoomMessage = {
+        id: `sys-${Date.now()}`,
+        senderId: 'system',
+        senderName: 'System',
+        senderColor: color,
+        text: `${memberName} joined the party!`,
+        timestamp: Date.now(),
+        isSystem: true,
+      };
+      room.messages.push(joinMsg);
+      if (room.messages.length > 100) room.messages.shift();
+
+      const estTime = computeEstimatedTime(room);
+      const payload = {
+        type: 'joined',
+        roomCode: code,
+        memberId,
+        member: { id: memberId, name: memberName, color, isHost: false },
+        room: {
+          code,
+          hostId: room.hostId,
+          hostOnlyControl: room.hostOnlyControl,
+          mediaInfo: room.mediaInfo,
+          playback: {
+            ...room.playback,
+            currentTime: estTime,
+          },
+          members: getSanitizedMembers(room),
+          messages: room.messages,
+        },
+      };
+
+      broadcastToRoom(room, {
+        type: 'member_joined',
+        member: { id: memberId, name: memberName, color, isHost: false },
+        members: getSanitizedMembers(room),
+        systemMessage: joinMsg,
+      });
+
+      return res.json(payload);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'Failed to join room' });
+    }
+  });
+
+  app.post('/api/rooms/:code/action', (req, res) => {
+    const code = req.params.code.toUpperCase();
+    const room = rooms.get(code);
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    const { type, memberId, ...data } = req.body;
+    const member = room.members.get(memberId);
+
+    if (type === 'playback_sync') {
+      if (room.hostOnlyControl && member && !member.isHost) {
+        return res.status(403).json({ error: 'Host has enabled "Host-Only Playback Controls".' });
+      }
+      const { action, currentTime, playbackRate } = data;
+      const targetTime = typeof currentTime === 'number' ? currentTime : room.playback.currentTime;
+      const targetRate = typeof playbackRate === 'number' ? playbackRate : room.playback.playbackRate;
+
+      if (action === 'play') {
+        room.playback.isPlaying = true;
+        room.playback.currentTime = targetTime;
+        room.playback.updatedAt = Date.now();
+      } else if (action === 'pause') {
+        room.playback.isPlaying = false;
+        room.playback.currentTime = targetTime;
+        room.playback.updatedAt = Date.now();
+      } else if (action === 'seek') {
+        room.playback.currentTime = targetTime;
+        room.playback.updatedAt = Date.now();
+      } else if (action === 'rate') {
+        room.playback.playbackRate = targetRate;
+        room.playback.currentTime = targetTime;
+        room.playback.updatedAt = Date.now();
+      }
+
+      broadcastToRoom(room, {
+        type: 'playback_sync',
+        action,
+        currentTime: targetTime,
+        playbackRate: room.playback.playbackRate,
+        isPlaying: room.playback.isPlaying,
+        updatedAt: room.playback.updatedAt,
+        sender: {
+          id: memberId,
+          name: member ? member.name : 'User',
+        },
+      });
+      return res.json({ success: true, playback: room.playback });
+    }
+
+    if (type === 'chat_message') {
+      const chatMsg: RoomMessage = {
+        id: `msg-${Date.now()}`,
+        senderId: memberId,
+        senderName: member ? member.name : 'User',
+        senderColor: member ? member.color : '#38bdf8',
+        text: data.text,
+        timestamp: Date.now(),
+      };
+      room.messages.push(chatMsg);
+      if (room.messages.length > 100) room.messages.shift();
+      broadcastToRoom(room, { type: 'chat_message', message: chatMsg });
+      return res.json({ success: true, message: chatMsg });
+    }
+
+    if (type === 'reaction') {
+      broadcastToRoom(room, {
+        type: 'reaction',
+        emoji: data.emoji,
+        senderName: member ? member.name : 'User',
+      });
+      return res.json({ success: true });
+    }
+
+    if (type === 'media_announce') {
+      room.mediaInfo = data.mediaInfo;
+      const sysMsg: RoomMessage = {
+        id: `sys-${Date.now()}`,
+        senderId: 'system',
+        senderName: 'System',
+        senderColor: '#38bdf8',
+        text: `${member ? member.name : 'Host'} loaded media: ${data.mediaInfo.name}`,
+        timestamp: Date.now(),
+        isSystem: true,
+      };
+      room.messages.push(sysMsg);
+      broadcastToRoom(room, { type: 'media_announce', mediaInfo: data.mediaInfo, systemMessage: sysMsg });
+      return res.json({ success: true });
+    }
+
+    if (type === 'leave') {
+      if (member) {
+        room.members.delete(memberId);
+        if (room.members.size === 0) {
+          rooms.delete(code);
+        } else {
+          let newHostAssigned = false;
+          if (member.isHost) {
+            const nextMember = room.members.values().next().value;
+            if (nextMember) {
+              nextMember.isHost = true;
+              room.hostId = nextMember.id;
+              newHostAssigned = true;
+            }
+          }
+          const leaveMsg: RoomMessage = {
+            id: `sys-${Date.now()}`,
+            senderId: 'system',
+            senderName: 'System',
+            senderColor: member.color,
+            text: `${member.name} left the party.`,
+            timestamp: Date.now(),
+            isSystem: true,
+          };
+          room.messages.push(leaveMsg);
+          broadcastToRoom(room, {
+            type: 'member_left',
+            memberId,
+            memberName: member.name,
+            members: getSanitizedMembers(room),
+            newHostId: newHostAssigned ? room.hostId : undefined,
+            systemMessage: leaveMsg,
+          });
+        }
+      }
+      return res.json({ success: true });
+    }
+
+    return res.status(400).json({ error: 'Unknown action type' });
+  });
+
   const server = http.createServer(app);
   const wss = new WebSocketServer({ server, path: '/ws' });
 
@@ -150,52 +460,15 @@ async function startServer() {
 
         switch (data.type) {
           case 'create': {
-            let code = generateRoomCode();
-            while (rooms.has(code)) {
-              code = generateRoomCode();
-            }
-
-            const memberId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-            const memberName = (data.userName || 'Host').trim().substring(0, 24);
-            const color = getRandomColor();
-
-            const newMember: Member = {
-              id: memberId,
-              name: memberName,
-              color,
-              isHost: true,
-              currentTime: Number(data.currentTime) || 0,
-              isPlaying: Boolean(data.isPlaying),
-              ws,
-            };
-
-            const room: Room = {
-              code,
-              hostId: memberId,
-              hostOnlyControl: Boolean(data.hostOnlyControl),
-              createdAt: Date.now(),
-              mediaInfo: data.mediaInfo || null,
-              playback: {
-                isPlaying: Boolean(data.isPlaying),
-                currentTime: Number(data.currentTime) || 0,
-                updatedAt: Date.now(),
-                playbackRate: Number(data.playbackRate) || 1,
-              },
-              messages: [
-                {
-                  id: `sys-${Date.now()}`,
-                  senderId: 'system',
-                  senderName: 'System',
-                  senderColor: '#38bdf8',
-                  text: `Room ${code} created. Share the code with a friend to watch together!`,
-                  timestamp: Date.now(),
-                  isSystem: true,
-                },
-              ],
-              members: new Map([[memberId, newMember]]),
-            };
-
-            rooms.set(code, room);
+            const { code, memberId, memberName, color, room } = createNewRoom(
+              data.userName,
+              data.hostOnlyControl,
+              data.mediaInfo,
+              data.currentTime,
+              data.isPlaying,
+              data.playbackRate,
+              ws
+            );
             currentRoomCode = code;
             currentMemberId = memberId;
 

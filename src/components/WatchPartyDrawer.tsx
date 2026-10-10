@@ -12,6 +12,8 @@ import {
   Unlock,
   Share2,
   Sparkles,
+  Home,
+  ArrowLeft,
 } from 'lucide-react';
 import { WatchPartyState, WatchPartyMember, WatchPartyMessage } from '../types/media';
 
@@ -26,6 +28,7 @@ interface WatchPartyDrawerProps {
   onResync: () => void;
   onLeaveRoom: () => void;
   onToggleHostControl: (enabled: boolean) => void;
+  onBackToHome?: () => void;
 }
 
 const QUICK_REACTIONS = ['🍿', '❤️', '😂', '😱', '🔥', '👏', '🎉', '🤯'];
@@ -41,6 +44,7 @@ export const WatchPartyDrawer: React.FC<WatchPartyDrawerProps> = ({
   onResync,
   onLeaveRoom,
   onToggleHostControl,
+  onBackToHome,
 }) => {
   const [activeTab, setActiveTab] = useState<'chat' | 'people' | 'settings'>('chat');
   const [inputText, setInputText] = useState('');
@@ -81,15 +85,27 @@ export const WatchPartyDrawer: React.FC<WatchPartyDrawerProps> = ({
     <div className="fixed inset-y-0 right-0 z-40 w-full sm:w-96 bg-zinc-900 border-l border-zinc-800 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
       {/* Top Header */}
       <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/90 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => {
+              onClose();
+              onBackToHome?.();
+            }}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-zinc-300 hover:text-white rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors border border-zinc-700/60 cursor-pointer"
+            title="Return to Home Screen"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+            <Home className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Home</span>
+          </button>
+          <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-xs font-mono font-bold tracking-wider text-sky-400 bg-sky-950/60 px-2 py-0.5 rounded-md border border-sky-800/50">
               {roomState.code}
             </span>
           </div>
-          <span className="text-xs text-zinc-400">
-            {roomState.members.length} watching
+          <span className="text-[11px] text-zinc-400 hidden sm:inline">
+            ({roomState.members.length})
           </span>
         </div>
 
@@ -104,6 +120,7 @@ export const WatchPartyDrawer: React.FC<WatchPartyDrawerProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+            title="Close Drawer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -346,6 +363,18 @@ export const WatchPartyDrawer: React.FC<WatchPartyDrawerProps> = ({
           >
             <LogOut className="w-3.5 h-3.5 text-rose-400" />
             <span>Leave Watch Party</span>
+          </button>
+
+          <button
+            onClick={() => {
+              onClose();
+              onBackToHome?.();
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+            <Home className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Return to Home Screen</span>
           </button>
         </div>
       )}

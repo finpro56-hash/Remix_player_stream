@@ -12,6 +12,8 @@ import {
   Shuffle,
   Repeat,
   Repeat1,
+  ArrowLeft,
+  Home,
 } from 'lucide-react';
 import { MediaItem, LoopMode } from '../types/media';
 import { formatFileSize, formatTime } from '../utils/formatters';
@@ -29,6 +31,7 @@ interface PlaylistDrawerProps {
   onToggleLoop: () => void;
   isShuffle: boolean;
   onToggleShuffle: () => void;
+  onBackToHome?: () => void;
 }
 
 export const PlaylistDrawer: React.FC<PlaylistDrawerProps> = ({
@@ -44,6 +47,7 @@ export const PlaylistDrawer: React.FC<PlaylistDrawerProps> = ({
   onToggleLoop,
   isShuffle,
   onToggleShuffle,
+  onBackToHome,
 }) => {
   const [filterType, setFilterType] = useState<'all' | 'video' | 'audio'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,12 +92,27 @@ export const PlaylistDrawer: React.FC<PlaylistDrawerProps> = ({
       {/* Header */}
       <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <ListMusic className="w-5 h-5 text-sky-400" />
-          <h2 className="text-sm font-semibold text-white">Media Queue ({playlist.length})</h2>
+          <button
+            onClick={() => {
+              onClose();
+              onBackToHome?.();
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-zinc-300 hover:text-white rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors border border-zinc-700/60 cursor-pointer"
+            title="Return to Home Screen"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+            <Home className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Home</span>
+          </button>
+          <div className="flex items-center gap-2">
+            <ListMusic className="w-4 h-4 text-sky-400" />
+            <h2 className="text-sm font-semibold text-white">Queue ({playlist.length})</h2>
+          </div>
         </div>
         <button
           onClick={onClose}
           className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+          title="Close Queue"
         >
           <X className="w-5 h-5" />
         </button>

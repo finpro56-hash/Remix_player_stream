@@ -1,18 +1,19 @@
 import React from 'react';
-import { X, Keyboard } from 'lucide-react';
+import { X, Keyboard, ArrowLeft, Home } from 'lucide-react';
 
 interface ShortcutsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onBackToHome?: () => void;
 }
 
-export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
+export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose, onBackToHome }) => {
   if (!isOpen) return null;
 
   const shortcuts = [
+    { key: 'H / Esc', desc: 'Back to Home / File Hub' },
     { key: 'Space / K', desc: 'Play / Pause' },
     { key: 'F', desc: 'Toggle Fullscreen' },
-    { key: 'T', desc: 'Toggle Theater Mode' },
     { key: 'M', desc: 'Mute / Unmute Audio' },
     { key: '← / →', desc: 'Seek Backward / Forward 5s' },
     { key: 'J / L', desc: 'Seek Backward / Forward 10s' },
@@ -34,12 +35,26 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
             <Keyboard className="w-5 h-5 text-sky-400" />
             <h2 className="text-base font-semibold text-white">Keyboard Shortcuts</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                onClose();
+                onBackToHome?.();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-white rounded-xl bg-zinc-800 hover:bg-zinc-700 transition-colors border border-zinc-700/60 cursor-pointer"
+              title="Return to Home Screen"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+              <Home className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Home</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 max-h-[70vh] overflow-y-auto space-y-2">
@@ -58,8 +73,25 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
           </div>
         </div>
 
-        <div className="px-6 py-3 bg-zinc-950/40 border-t border-zinc-800/80 text-center">
-          <span className="text-xs text-zinc-500">Press Esc or ? at any time to dismiss</span>
+        <div className="px-6 py-3 bg-zinc-950/60 border-t border-zinc-800/80 flex items-center justify-between">
+          <button
+            onClick={() => {
+              onClose();
+              onBackToHome?.();
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors border border-zinc-700/80 active:scale-95 cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+            <Home className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Back to Home</span>
+          </button>
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl bg-sky-500 hover:bg-sky-400 text-zinc-950 transition-colors shadow-md active:scale-95 cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Player</span>
+          </button>
         </div>
       </div>
     </div>

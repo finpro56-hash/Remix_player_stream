@@ -15,6 +15,8 @@ import {
   ShieldAlert,
   ArrowRight,
   Share2,
+  Home,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   WatchPartyState,
@@ -40,6 +42,7 @@ interface WatchPartyModalProps {
   initialRoomCode?: string;
   error: string | null;
   onClearError: () => void;
+  onBackToHome?: () => void;
 }
 
 export const WatchPartyModal: React.FC<WatchPartyModalProps> = ({
@@ -59,6 +62,7 @@ export const WatchPartyModal: React.FC<WatchPartyModalProps> = ({
   initialRoomCode = '',
   error,
   onClearError,
+  onBackToHome,
 }) => {
   const [activeTab, setActiveTab] = useState<'join' | 'create' | 'samples'>('join');
   const [inputCode, setInputCode] = useState(initialRoomCode);
@@ -139,12 +143,27 @@ export const WatchPartyModal: React.FC<WatchPartyModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                onClose();
+                onBackToHome?.();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-white rounded-xl bg-zinc-800 hover:bg-zinc-700 transition-colors border border-zinc-700/80 shadow-xs cursor-pointer"
+              title="Return to Home Screen"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+              <Home className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Back to Home</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800 transition-colors cursor-pointer"
+              title="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Error banner */}
@@ -313,13 +332,28 @@ export const WatchPartyModal: React.FC<WatchPartyModalProps> = ({
                   <span>Force Resync</span>
                 </button>
 
-                <button
-                  onClick={onLeaveRoom}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-medium border border-rose-500/30 transition-colors ml-auto"
-                >
-                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Leave Room</span>
-                </button>
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onBackToHome?.();
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700/80 transition-colors cursor-pointer"
+                    title="Return to Home Screen"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+                    <Home className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>Back to Home</span>
+                  </button>
+
+                  <button
+                    onClick={onLeaveRoom}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-medium border border-rose-500/30 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Leave Room</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -390,13 +424,26 @@ export const WatchPartyModal: React.FC<WatchPartyModalProps> = ({
                     />
                   </div>
 
-                  <button
-                    type="submit"
-                    className="w-full py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-zinc-950 font-bold text-sm transition-all shadow-lg active:scale-98 flex items-center justify-center gap-2 mt-2"
-                  >
-                    <span>Join Watch Party</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onBackToHome?.();
+                      }}
+                      className="px-4 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs border border-zinc-700/80 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Back to Home</span>
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-zinc-950 font-bold text-sm transition-all shadow-lg active:scale-98 flex items-center justify-center gap-2"
+                    >
+                      <span>Join Watch Party</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
 
                   <div className="p-3.5 rounded-xl bg-zinc-800/40 border border-zinc-800 text-[11px] text-zinc-400 space-y-1">
                     <p className="font-semibold text-zinc-300">Tip for seamless syncing:</p>
@@ -459,22 +506,47 @@ export const WatchPartyModal: React.FC<WatchPartyModalProps> = ({
                     </div>
                   )}
 
-                  <button
-                    type="submit"
-                    className="w-full py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-zinc-950 font-bold text-sm transition-all shadow-lg active:scale-98 flex items-center justify-center gap-2 mt-2"
-                  >
-                    <span>Create Watch Party Room</span>
-                    <Sparkles className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onBackToHome?.();
+                      }}
+                      className="px-4 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs border border-zinc-700/80 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Back to Home</span>
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-zinc-950 font-bold text-sm transition-all shadow-lg active:scale-98 flex items-center justify-center gap-2"
+                    >
+                      <span>Create Watch Party Room</span>
+                      <Sparkles className="w-4 h-4" />
+                    </button>
+                  </div>
                 </form>
               )}
 
               {/* Tab 3: Sample Movies */}
               {activeTab === 'samples' && (
                 <div className="space-y-3">
-                  <p className="text-xs text-zinc-400">
-                    Want to test the Watch Party immediately with another browser tab or friend? Pick one of these ready-to-stream open movie clips:
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-zinc-400">
+                      Want to test the Watch Party immediately? Pick one of these ready-to-stream open movie clips:
+                    </p>
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onBackToHome?.();
+                      }}
+                      className="px-2.5 py-1 text-xs text-zinc-400 hover:text-white rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors flex items-center gap-1 shrink-0 ml-2"
+                    >
+                      <ArrowLeft className="w-3 h-3" />
+                      <span>Back to Home</span>
+                    </button>
+                  </div>
                   <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                     {SAMPLE_MOVIES.map((sample) => (
                       <div
@@ -497,7 +569,7 @@ export const WatchPartyModal: React.FC<WatchPartyModalProps> = ({
                             onLoadSampleMovie(sample);
                             onClose();
                           }}
-                          className="px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500 text-sky-300 hover:text-zinc-950 text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5"
+                          className="px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500 text-sky-300 hover:text-zinc-950 text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
                         >
                           <Play className="w-3.5 h-3.5 fill-current" />
                           <span>Load</span>
@@ -505,6 +577,17 @@ export const WatchPartyModal: React.FC<WatchPartyModalProps> = ({
                       </div>
                     ))}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onBackToHome?.();
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs border border-zinc-700/80 transition-colors flex items-center justify-center gap-2 mt-2 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Back to Home Screen</span>
+                  </button>
                 </div>
               )}
             </div>

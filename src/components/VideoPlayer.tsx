@@ -25,6 +25,8 @@ import {
   Repeat,
   Users,
   MessageSquare,
+  ArrowLeft,
+  Home,
 } from 'lucide-react';
 import {
   MediaItem,
@@ -80,6 +82,7 @@ interface VideoPlayerProps {
   onSendReaction?: (emoji: string) => void;
   onOpenWatchParty?: () => void;
   onOpenPartyDrawer?: () => void;
+  onBackToHome: () => void;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
@@ -107,6 +110,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   onSendReaction,
   onOpenWatchParty,
   onOpenPartyDrawer,
+  onBackToHome,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mediaRef = useRef<HTMLVideoElement | null>(null);
@@ -543,6 +547,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             showToast(selectedSubTrackId ? 'Subtitles Off' : 'Subtitles On');
           }
           break;
+        case 'h':
+          e.preventDefault();
+          onBackToHome();
+          break;
+        case 'escape':
+          if (!document.fullscreenElement) {
+            e.preventDefault();
+            onBackToHome();
+          }
+          break;
       }
     };
 
@@ -562,6 +576,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     showToast,
     onAddBookmark,
     onOpenShortcuts,
+    onBackToHome,
   ]);
 
   // Compute CSS filter style for video
@@ -744,6 +759,23 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }`}
       >
         <div className="flex items-center gap-3 min-w-0 pr-4">
+          {/* Back to Home Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+              }
+              onBackToHome();
+            }}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 hover:text-white border border-sky-500/40 text-xs font-bold transition-all shadow-md group shrink-0 active:scale-95 cursor-pointer"
+            title="Return to Home Screen & File Hub (H or Esc)"
+          >
+            <ArrowLeft className="w-4 h-4 text-sky-400 group-hover:-translate-x-1 transition-transform" />
+            <Home className="w-3.5 h-3.5 text-zinc-300 group-hover:text-white" />
+            <span>Back to Home</span>
+          </button>
+
           <div className="truncate">
             <h1 className="text-sm font-semibold text-white tracking-wide truncate">
               {currentMedia.name}
@@ -941,8 +973,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
         {/* Control Buttons Strip */}
         <div className="flex items-center justify-between gap-2">
-          {/* Left Controls: Play/Pause, Skips, Playlist Nav, Time */}
-          <div className="flex items-center gap-2">
+          {/* Left Controls: Home, Play/Pause, Skips, Playlist Nav, Time */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Quick Back to Home Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (document.fullscreenElement) {
+                  document.exitFullscreen().catch(() => {});
+                }
+                onBackToHome();
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-700/80 text-xs font-semibold transition-colors mr-1 cursor-pointer active:scale-95"
+              title="Return to Home Screen & File Hub (H / Esc)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+              <Home className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="hidden sm:inline">Home</span>
+            </button>
+
             {/* Previous Track */}
             <button
               onClick={onPreviousTrack}

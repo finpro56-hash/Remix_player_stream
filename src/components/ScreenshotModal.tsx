@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Download, Copy, Check, Camera } from 'lucide-react';
+import { X, Download, Copy, Check, Camera, ArrowLeft, Home } from 'lucide-react';
 import { formatTime } from '../utils/formatters';
 
 interface ScreenshotModalProps {
@@ -8,6 +8,7 @@ interface ScreenshotModalProps {
   imageUrl: string | null;
   videoTitle: string;
   timestamp: number;
+  onBackToHome?: () => void;
 }
 
 export const ScreenshotModal: React.FC<ScreenshotModalProps> = ({
@@ -16,6 +17,7 @@ export const ScreenshotModal: React.FC<ScreenshotModalProps> = ({
   imageUrl,
   videoTitle,
   timestamp,
+  onBackToHome,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -53,12 +55,26 @@ export const ScreenshotModal: React.FC<ScreenshotModalProps> = ({
             <Camera className="w-5 h-5 text-sky-400" />
             <h2 className="text-base font-semibold text-white">Video Snapshot Captured</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                onClose();
+                onBackToHome?.();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-white rounded-xl bg-zinc-800 hover:bg-zinc-700 transition-colors border border-zinc-700/60 cursor-pointer"
+              title="Return to Home Screen"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+              <Home className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Home</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 space-y-4">
@@ -71,9 +87,22 @@ export const ScreenshotModal: React.FC<ScreenshotModalProps> = ({
         </div>
 
         <div className="px-6 py-3 bg-zinc-950/40 border-t border-zinc-800 flex items-center justify-between">
-          <span className="text-xs text-zinc-400 truncate max-w-[280px]">
-            {videoTitle} @ {formatTime(timestamp)}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                onClose();
+                onBackToHome?.();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors border border-zinc-700/80 active:scale-95 cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-sky-400" />
+              <Home className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Back to Home</span>
+            </button>
+            <span className="text-xs text-zinc-400 truncate max-w-[200px] hidden sm:inline">
+              {videoTitle} @ {formatTime(timestamp)}
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopy}
